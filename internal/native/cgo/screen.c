@@ -29,41 +29,46 @@ void handle_indev_event(lv_event_t *e) {
     indev_handler(lv_event_get_code(e));
 }
 
-static void evdev_discovery_cb(lv_indev_t *indev, lv_evdev_type_t type, void *user_data) {
-    LV_UNUSED(user_data);
+// Evdev callback - disabled for now due to LVGL build configuration
+// static void evdev_discovery_cb(lv_indev_t *indev, lv_evdev_type_t type, void *user_data) {
+//     LV_UNUSED(user_data);
+//     if (type != LV_EVDEV_TYPE_ABS) {
+//         return;
+//     }
+//     log_info("[C-UI-INIT] touchscreen discovered, configuring...");
+//     lv_indev_set_group(indev, lv_group_get_default());
+//     lv_indev_set_display(indev, disp);
+//     lv_indev_add_event_cb(indev, handle_indev_event, LV_EVENT_ALL, NULL);
+//     log_info("[C-UI-INIT] touchscreen configured successfully");
+// }
 
-    // Only handle touchscreen (absolute pointer devices)
-    if (type != LV_EVDEV_TYPE_ABS) {
-        return;
-    }
-
-    log_info("[C-UI-INIT] touchscreen discovered, configuring...");
-    lv_indev_set_group(indev, lv_group_get_default());
-    lv_indev_set_display(indev, disp);
-    lv_indev_add_event_cb(indev, handle_indev_event, LV_EVENT_ALL, NULL);
-    log_info("[C-UI-INIT] touchscreen configured successfully");
-}
-
-void lvgl_init(u_int16_t rotation) {
+void lvgl_init(uint16_t rotation) {
     log_trace("initalizing lvgl");
 
     /*LittlevGL init*/
     lv_init();
 
     /*Linux frame buffer device init*/
+    // Note: lv_linux_fbdev functions may not be available in this LVGL build
+    // Attempting to create display with generic API
+    #ifdef LV_USE_LINUX_FBDEV
     disp = lv_linux_fbdev_create();
-    // lv_display_set_physical_resolution(disp, 240, 300);
     lv_display_set_resolution(disp, 240, 300);
     lv_linux_fbdev_set_file(disp, "/dev/fb0");
+    #else
+    log_warn("[C-UI-INIT] Linux fbdev driver not available, display may not work");
+    disp = lv_display_create(240, 300);
+    #endif
 
     lvgl_set_rotation(disp, rotation);
 
-    log_info("[C-UI-INIT] step 4/6: initializing input device discovery");
-    if (lv_evdev_discovery_start(evdev_discovery_cb, NULL) != LV_RESULT_OK) {
-        log_warn("[C-UI-INIT] step 4/6: evdev discovery failed to start, touchscreen may not work");
-    } else {
-        log_info("[C-UI-INIT] step 4/6: evdev discovery started");
-    }
+    // Evdev discovery disabled - LVGL build doesn't include Linux drivers
+    // log_info("[C-UI-INIT] step 4/6: initializing input device discovery");
+    // if (lv_evdev_discovery_start(evdev_discovery_cb, NULL) != LV_RESULT_OK) {
+    //     log_warn("[C-UI-INIT] step 4/6: evdev discovery failed to start, touchscreen may not work");
+    // } else {
+    //     log_info("[C-UI-INIT] step 4/6: evdev discovery started");
+    // }
 
     log_trace("initalizing ui");
 
@@ -79,7 +84,7 @@ void lvgl_tick(void) {
     ui_tick();
 }
 
-void lvgl_set_rotation(lv_display_t *disp_ref, u_int16_t rotation) {
+void lvgl_set_rotation(lv_display_t *disp_ref, uint16_t rotation) {
     if (disp_ref == NULL) {
         disp_ref = disp;
     }

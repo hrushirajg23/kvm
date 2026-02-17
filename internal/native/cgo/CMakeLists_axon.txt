@@ -1,0 +1,94 @@
+cmake_minimum_required(VERSION 3.14)
+include(FetchContent)
+
+project(jknative LANGUAGES C CXX)
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Rockchip paths (Generic Linux defaults)
+# User can override these with -DRK_...
+set(RK_MEDIA_INCLUDE_PATH "/usr/include/rockchip" CACHE PATH "Path to Rockchip headers")
+set(RK_APP_MEDIA_LIBS_PATH "/usr/lib/aarch64-linux-gnu" CACHE PATH "Path to Rockchip libs")
+
+set(LV_USE_KCONFIG ON CACHE BOOL "" FORCE)
+set(LV_BUILD_DEFCONFIG_PATH ${CMAKE_CURRENT_SOURCE_DIR}/lvgl_defconfig CACHE PATH "" FORCE)
+
+# Fetch LVGL (Same as original)
+FetchContent_Declare(
+    lvgl
+    GIT_REPOSITORY https://github.com/lvgl/lvgl.git
+    GIT_TAG v9.3.0
+    GIT_SHALLOW 1
+    UPDATE_DISCONNECTED 1
+    PATCH_COMMAND patch -p1 -f < ${CMAKE_CURRENT_SOURCE_DIR}/lvgl-minify.patch && cat ${CMAKE_CURRENT_SOURCE_DIR}/lvgl-minify.del | xargs rm -v
+    )
+FetchContent_MakeAvailable(lvgl)
+
+# Get source files
+file(GLOB_RECURSE sources CONFIGURE_DEPENDS "*.c" "ui/*.c")
+list(FILTER sources EXCLUDE REGEX "CMakeFiles.*CompilerId.*\\.c$")
+list(FILTER sources EXCLUDE REGEX "main\\.c$")
+
+add_library(jknative STATIC ${sources} ${CMAKE_CURRENT_SOURCE_DIR}/ctrl.h)
+
+# Include directories
+target_include_directories(jknative PRIVATE
+    ${RK_MEDIA_INCLUDE_PATH}
+    ${RK_MEDIA_INCLUDE_PATH}/libdrm
+    ${RK_MEDIA_INCLUDE_PATH}/mpp
+    ${RK_MEDIA_INCLUDE_PATH}/rockchip
+    /usr/include/rockchip
+    /usr/include/mpp
+    /usr/include/rockchip/mpp
+    /usr/include/rockchip
+    /usr/local/include/rockchip
+    /usr/local/include/mpp
+    /opt/rockchip/include
+    /usr/include/libdrm
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui
+)
+
+# Library search path
+target_link_directories(jknative PRIVATE ${RK_APP_MEDIA_LIBS_PATH})
+
+# Link libraries
+# We try to find rockit, if not found we proceed without explicit link (might be in mpp or provided otherwise)
+find_library(ROCKIT_LIB NAMES rockit)
+find_library(MPP_LIB NAMES rockchip_mpp mpp)
+find_library(RGA_LIB NAMES rga)
+
+target_link_libraries(jknative PRIVATE
+    lvgl::lvgl
+    pthread
+    m
+)
+
+if(MPP_LIB)
+    target_link_libraries(jknative PRIVATE ${MPP_LIB})
+else()
+    target_link_libraries(jknative PRIVATE rockchip_mpp) # Try default name
+endif()
+
+if(RGA_LIB)
+    target_link_libraries(jknative PRIVATE ${RGA_LIB})
+else()
+    target_link_libraries(jknative PRIVATE rga)
+endif()
+
+if(ROCKIT_LIB)
+    target_link_libraries(jknative PRIVATE ${ROCKIT_LIB})
+else()
+    message(WARNING "librockit not found. If the build fails with undefined references to RK_MPI_..., you imply need to install Rockchip MPP SDK or find where rockit is.")
+endif()
+
+# Binary target
+add_executable(jknative-bin ${CMAKE_CURRENT_SOURCE_DIR}/main.c)
+
+target_link_libraries(jknative-bin PRIVATE
+    jknative
+    pthread
+)
+
+install(TARGETS jknative lvgl DESTINATION lib)
+install(TARGETS jknative-bin DESTINATION bin)

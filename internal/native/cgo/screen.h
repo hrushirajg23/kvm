@@ -7,10 +7,10 @@ typedef void (indev_handler_t)(lv_event_code_t code);
 
 void lvgl_set_indev_handler(indev_handler_t *handler);
 
-void lvgl_init(u_int16_t rotation);
+void lvgl_init(uint16_t rotation);
 void lvgl_tick(void);
 
-void lvgl_set_rotation(lv_display_t *disp, u_int16_t rotation);
+void lvgl_set_rotation(lv_display_t *disp, uint16_t rotation);
 
 /**
  * @brief Set the text of an object

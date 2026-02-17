@@ -1,14 +1,11 @@
 #define _POSIX_C_SOURCE 200809L
 #include <unistd.h>
 #include <time.h>
-#include <rk_type.h>
-#include <rk_mpi_venc.h>
-#include <rk_mpi_sys.h>
+#include "rk_compatibility.h"
 #include <string.h>
-#include <rk_debug.h>
+// #include <rk_debug.h> 
 #include <malloc.h>
 #include <stdbool.h>
-#include <rk_mpi_mb.h>
 #include <fcntl.h>
 #include <linux/videodev2.h>
 #include <sys/ioctl.h>
@@ -18,7 +15,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <rk_mpi_mmz.h>
+// #include <rk_mpi_mmz.h> // Likely not needed or handled by mpp_buffer
 #include <pthread.h>
 #include <assert.h>
 #include <sys/un.h>
@@ -86,6 +83,7 @@ static void detect_sleep_mode()
 {
     if (access(SLEEP_MODE_FILE, F_OK) != 0) {
         sleep_mode_available = false;
+        log_info("Sleep mode file not found, disabling sleep mode management");
         return;
     }
     sleep_mode_available = true;
@@ -325,6 +323,7 @@ static void *venc_read_stream(void *arg)
                    loopCount, stFrame.u32Seq, stFrame.pstPack->u32Len,
                    stFrame.pstPack->u64PTS, nowUs - stFrame.pstPack->u64PTS);
             pData = RK_MPI_MB_Handle2VirAddr(stFrame.pstPack->pMbBlk);
+            if (pData == NULL) pData = stFrame.pstPack->pu8Addr; // Fallback for shim which sets pu8Addr directly
             video_send_frame(pData, (ssize_t)stFrame.pstPack->u32Len);
             s32Ret = RK_MPI_VENC_ReleaseStream(VENC_CHANNEL, &stFrame);
             if (s32Ret != RK_SUCCESS)
